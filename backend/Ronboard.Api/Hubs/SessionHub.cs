@@ -20,10 +20,15 @@ public class SessionHub(SessionManager sessionManager, ILogger<SessionHub> logge
 
         if (session.Status != SessionStatus.Error)
         {
+            // Resolve IHubContext NOW while Context is still valid.
+            // Task.Run runs after CreateSession returns, when Context is already disposed.
+            var hubContext = Context.GetHttpContext()!.RequestServices
+                .GetRequiredService<IHubContext<SessionHub>>();
+
             if (session.Mode == SessionMode.Terminal)
-                _ = Task.Run(() => BroadcastTerminalOutput(session.Id));
+                _ = Task.Run(() => BroadcastTerminalOutput(session.Id, hubContext));
             else
-                _ = Task.Run(() => BroadcastStreamOutput(session.Id));
+                _ = Task.Run(() => BroadcastStreamOutput(session.Id, hubContext));
         }
 
         await Clients.All.SendAsync("SessionCreated", session);
@@ -80,14 +85,10 @@ public class SessionHub(SessionManager sessionManager, ILogger<SessionHub> logge
         await Clients.All.SendAsync("SessionRemoved", sessionId);
     }
 
-    private async Task BroadcastTerminalOutput(Guid sessionId)
+    private async Task BroadcastTerminalOutput(Guid sessionId, IHubContext<SessionHub> hubContext)
     {
         var channel = sessionManager.GetTerminalChannel(sessionId);
         if (channel is null) return;
-
-        var hubContext = Context.GetHttpContext()?.RequestServices
-            .GetRequiredService<IHubContext<SessionHub>>();
-        if (hubContext is null) return;
 
         try
         {
@@ -104,14 +105,10 @@ public class SessionHub(SessionManager sessionManager, ILogger<SessionHub> logge
             .SendAsync("SessionEnded", sessionId);
     }
 
-    private async Task BroadcastStreamOutput(Guid sessionId)
+    private async Task BroadcastStreamOutput(Guid sessionId, IHubContext<SessionHub> hubContext)
     {
         var channel = sessionManager.GetStreamChannel(sessionId);
         if (channel is null) return;
-
-        var hubContext = Context.GetHttpContext()?.RequestServices
-            .GetRequiredService<IHubContext<SessionHub>>();
-        if (hubContext is null) return;
 
         try
         {
