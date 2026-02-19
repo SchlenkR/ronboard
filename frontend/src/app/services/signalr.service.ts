@@ -19,6 +19,8 @@ export class SignalRService implements OnDestroy {
   readonly sessionStopped$ = new Subject<string>();
   readonly sessionRemoved$ = new Subject<string>();
   readonly sessionEnded$ = new Subject<string>();
+  readonly sessionResumed$ = new Subject<AgentSession>();
+  readonly sessionRenamed$ = new Subject<{ sessionId: string; name: string }>();
   readonly connected$ = new BehaviorSubject<boolean>(false);
 
   // Terminal mode events
@@ -52,6 +54,10 @@ export class SignalRService implements OnDestroy {
       this.sessionRemoved$.next(id));
     this.connection.on('SessionEnded', (id: string) =>
       this.sessionEnded$.next(id));
+    this.connection.on('SessionResumed', (session: AgentSession) =>
+      this.sessionResumed$.next(session));
+    this.connection.on('SessionRenamed', (sessionId: string, name: string) =>
+      this.sessionRenamed$.next({ sessionId, name }));
 
     // Terminal mode
     this.connection.on('TerminalOutput', (sessionId: string, data: string) =>
@@ -109,6 +115,10 @@ export class SignalRService implements OnDestroy {
 
   async removeSession(sessionId: string): Promise<void> {
     await this.connection.invoke('RemoveSession', sessionId);
+  }
+
+  async resumeSession(sessionId: string): Promise<AgentSession> {
+    return this.connection.invoke<AgentSession>('ResumeSession', sessionId);
   }
 
   ngOnDestroy(): void {

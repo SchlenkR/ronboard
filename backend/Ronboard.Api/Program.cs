@@ -14,7 +14,9 @@ builder.Services.AddSignalR()
     });
 
 builder.Services.AddSingleton<ClaudeProcessService>();
+builder.Services.AddSingleton<PersistenceService>();
 builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddSingleton<AutoNamingService>();
 
 builder.Services.AddCors(options =>
 {
@@ -29,6 +31,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Load persisted sessions before accepting connections
+var sessionManager = app.Services.GetRequiredService<SessionManager>();
+await sessionManager.LoadPersistedSessionsAsync();
+
+// Wire up auto-naming
+var autoNaming = app.Services.GetRequiredService<AutoNamingService>();
+autoNaming.Initialize(sessionManager);
+
 app.UseWebSockets();
 app.UseCors("Frontend");
 
@@ -36,10 +46,9 @@ app.MapHub<SessionHub>("/hubs/session").RequireCors("Frontend");
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {
-    var manager = app.Services.GetRequiredService<SessionManager>();
-    foreach (var session in manager.GetAll())
+    foreach (var session in sessionManager.GetAll())
     {
-        manager.StopSession(session.Id);
+        sessionManager.StopSession(session.Id);
     }
 });
 

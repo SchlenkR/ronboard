@@ -51,6 +51,16 @@ export class SessionService {
         list.map(s => s.id === id ? { ...s, status: 'stopped' as const } : s));
     });
 
+    this.signalr.sessionResumed$.subscribe(session => {
+      this.sessions.update(list =>
+        list.map(s => s.id === session.id ? session : s));
+    });
+
+    this.signalr.sessionRenamed$.subscribe(({ sessionId, name }) => {
+      this.sessions.update(list =>
+        list.map(s => s.id === sessionId ? { ...s, name } : s));
+    });
+
     // Stream mode: collect messages
     this.signalr.streamMessage$.subscribe(({ sessionId, message }) => {
       if (sessionId === this.activeSessionId()) {
@@ -71,6 +81,12 @@ export class SessionService {
     this.messages.set([]);
     await this.signalr.joinSession(sessionId);
     this.previousSessionId = sessionId;
+
+    // Auto-resume stopped sessions
+    const session = this.sessions().find(s => s.id === sessionId);
+    if (session?.status === 'stopped') {
+      await this.signalr.resumeSession(sessionId);
+    }
   }
 
   async createSession(name: string, workingDirectory: string,

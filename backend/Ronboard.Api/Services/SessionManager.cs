@@ -1,10 +1,15 @@
 namespace Ronboard.Api.Services;
 
 using System.Collections.Concurrent;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Ronboard.Api.Models;
 
-public class SessionManager(ClaudeProcessService processService, ILogger<SessionManager> logger)
+public class SessionManager(
+    ClaudeProcessService processService,
+    PersistenceService persistence,
+    ILogger<SessionManager> logger)
 {
     private readonly ConcurrentDictionary<Guid, AgentSession> _sessions = new();
 
@@ -15,6 +20,9 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
     // Stream mode
     private readonly ConcurrentDictionary<Guid, ChannelReader<ClaudeMessage>> _streamChannels = new();
     private readonly ConcurrentDictionary<Guid, List<ClaudeMessage>> _streamMessages = new();
+
+    // Auto-naming callback (set by AutoNamingService to avoid circular DI)
+    public Action<Guid>? OnOutputReceived { get; set; }
 
     public IReadOnlyCollection<AgentSession> GetAll() => _sessions.Values.ToList();
     public AgentSession? Get(Guid id) => _sessions.GetValueOrDefault(id);
@@ -34,6 +42,10 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
     {
         if (_terminalBuffers.TryGetValue(id, out var buffer))
             lock (buffer) { buffer.Add(data); }
+
+        _ = persistence.AppendTerminalOutputAsync(id, data);
+        UpdateLastUsedAt(id);
+        OnOutputReceived?.Invoke(id);
     }
 
     // ── Stream mode accessors ──
@@ -51,15 +63,22 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
     {
         if (_streamMessages.TryGetValue(id, out var msgs))
             lock (msgs) { msgs.Add(msg); }
+
+        _ = persistence.AppendStreamMessageAsync(id, msg);
+        UpdateLastUsedAt(id);
+        OnOutputReceived?.Invoke(id);
     }
 
     // ── Session lifecycle ──
 
-    public AgentSession CreateSession(string name, string workingDirectory,
+    public async Task<AgentSession> CreateSession(string name, string workingDirectory,
         SessionMode mode = SessionMode.Terminal, string? model = null)
     {
+        var number = await persistence.GetNextNumberAsync();
+
         var session = new AgentSession
         {
+            Number = number,
             Name = name,
             WorkingDirectory = workingDirectory,
             Mode = mode,
@@ -67,32 +86,10 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
 
         try
         {
-            if (mode == SessionMode.Terminal)
-            {
-                var (process, output) = processService.StartTerminalProcess(workingDirectory, model);
-                session.Process = process;
-                _terminalChannels[session.Id] = output;
-                _terminalBuffers[session.Id] = [];
-            }
-            else
-            {
-                var (process, output) = processService.StartStreamProcess(workingDirectory, model);
-                session.Process = process;
-                _streamChannels[session.Id] = output;
-                _streamMessages[session.Id] = [];
-            }
-
+            StartProcess(session, mode, workingDirectory, model);
             session.Status = SessionStatus.Running;
             _sessions[session.Id] = session;
-
-            session.Process!.EnableRaisingEvents = true;
-            session.Process.Exited += (_, _) =>
-            {
-                session.Status = session.Process.ExitCode == 0
-                    ? SessionStatus.Stopped
-                    : SessionStatus.Error;
-                logger.LogInformation("Session {Id} exited with code {Code}", session.Id, session.Process.ExitCode);
-            };
+            SetupProcessExitHandler(session);
         }
         catch (Exception ex)
         {
@@ -101,19 +98,28 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
             _sessions[session.Id] = session;
         }
 
+        await persistence.SaveMetadataAsync(session);
         return session;
     }
 
     public async Task SendInputAsync(Guid sessionId, string data)
     {
         if (_sessions.TryGetValue(sessionId, out var session) && session.Process is not null)
+        {
             await processService.SendInputAsync(session.Process, data);
+            _ = persistence.AppendTerminalInputAsync(sessionId, data);
+            UpdateLastUsedAt(sessionId);
+        }
     }
 
     public async Task SendStreamMessageAsync(Guid sessionId, string message)
     {
         if (_sessions.TryGetValue(sessionId, out var session) && session.Process is not null)
+        {
             await processService.SendStreamMessageAsync(session.Process, message);
+            _ = persistence.AppendStreamInputAsync(sessionId, message);
+            UpdateLastUsedAt(sessionId);
+        }
     }
 
     public void StopSession(Guid sessionId)
@@ -123,6 +129,7 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
             try { session.Process.Kill(entireProcessTree: true); }
             catch (Exception ex) { logger.LogWarning(ex, "Error killing session {Id}", sessionId); }
             session.Status = SessionStatus.Stopped;
+            _ = persistence.SaveMetadataAsync(session);
         }
     }
 
@@ -133,6 +140,171 @@ public class SessionManager(ClaudeProcessService processService, ILogger<Session
         _terminalBuffers.TryRemove(sessionId, out _);
         _streamChannels.TryRemove(sessionId, out _);
         _streamMessages.TryRemove(sessionId, out _);
+        _ = persistence.DeleteSessionAsync(sessionId);
         return _sessions.TryRemove(sessionId, out _);
     }
+
+    // ── Persistence: Load + Resume ──
+
+    public async Task LoadPersistedSessionsAsync()
+    {
+        persistence.EnsureDirectories();
+        var sessions = await persistence.LoadAllSessionsAsync();
+        foreach (var session in sessions)
+        {
+            _sessions[session.Id] = session;
+
+            if (session.Mode == SessionMode.Terminal)
+            {
+                var history = await persistence.LoadTerminalHistoryAsync(session.Id);
+                _terminalBuffers[session.Id] = string.IsNullOrEmpty(history) ? [] : [history];
+            }
+            else
+            {
+                var msgs = await persistence.LoadStreamHistoryAsync(session.Id);
+                _streamMessages[session.Id] = msgs;
+            }
+        }
+
+        logger.LogInformation("Loaded {Count} persisted sessions", sessions.Count);
+    }
+
+    public async Task<AgentSession> ResumeSessionAsync(Guid sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+            throw new InvalidOperationException("Session not found");
+
+        if (session.Process is not null && !session.Process.HasExited)
+            return session; // already running
+
+        var inputs = await persistence.LoadInputHistoryAsync(sessionId);
+
+        if (session.Mode == SessionMode.Terminal)
+        {
+            var (process, output) = processService.StartTerminalProcess(session.WorkingDirectory);
+            session.Process = process;
+            _terminalChannels[session.Id] = output;
+            // Keep existing buffer (old output stays visible)
+
+            // Feed old conversation context (strip ANSI codes)
+            if (inputs.Count > 0)
+            {
+                var context = string.Join("\n", inputs);
+                var stripped = StripAnsiCodes(context);
+                if (!string.IsNullOrWhiteSpace(stripped))
+                {
+                    var resumePrompt = $"Here is our previous conversation for context. Please continue:\n\n{stripped}\n";
+                    // Wait a moment for Claude to initialize
+                    await Task.Delay(2000);
+                    await processService.SendInputAsync(process, resumePrompt);
+                }
+            }
+        }
+        else
+        {
+            var (process, output) = processService.StartStreamProcess(session.WorkingDirectory);
+            session.Process = process;
+            _streamChannels[session.Id] = output;
+            // Keep existing stream messages
+
+            if (inputs.Count > 0)
+            {
+                var summary = new StringBuilder();
+                foreach (var input in inputs)
+                    summary.AppendLine($"User: {input}");
+
+                var resumePrompt = $"Here is our previous conversation for context. Please continue from where we left off:\n\n{summary}";
+                await processService.SendStreamMessageAsync(process, resumePrompt);
+            }
+        }
+
+        session.Status = SessionStatus.Running;
+        session.LastUsedAt = DateTime.UtcNow;
+        SetupProcessExitHandler(session);
+        await persistence.SaveMetadataAsync(session);
+
+        return session;
+    }
+
+    /// <summary>Get accumulated text for auto-naming (stream: text deltas, terminal: raw output).</summary>
+    public string GetAccumulatedText(Guid sessionId)
+    {
+        var session = Get(sessionId);
+        if (session is null) return string.Empty;
+
+        if (session.Mode == SessionMode.Terminal)
+        {
+            var raw = GetTerminalHistory(sessionId);
+            return StripAnsiCodes(raw);
+        }
+
+        // Stream: extract text_delta content
+        var msgs = GetStreamHistory(sessionId);
+        var sb = new StringBuilder();
+        foreach (var msg in msgs)
+        {
+            if (msg.Type != "stream_event") continue;
+            try
+            {
+                if (msg.RawJson.TryGetProperty("event", out var evt) &&
+                    evt.TryGetProperty("type", out var t) &&
+                    t.GetString() == "content_block_delta" &&
+                    evt.TryGetProperty("delta", out var delta) &&
+                    delta.TryGetProperty("type", out var dt) &&
+                    dt.GetString() == "text_delta" &&
+                    delta.TryGetProperty("text", out var text))
+                {
+                    sb.Append(text.GetString());
+                }
+            }
+            catch { /* skip malformed */ }
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Private helpers ──
+
+    private void StartProcess(AgentSession session, SessionMode mode, string workingDirectory, string? model)
+    {
+        if (mode == SessionMode.Terminal)
+        {
+            var (process, output) = processService.StartTerminalProcess(workingDirectory, model);
+            session.Process = process;
+            _terminalChannels[session.Id] = output;
+            _terminalBuffers[session.Id] = [];
+        }
+        else
+        {
+            var (process, output) = processService.StartStreamProcess(workingDirectory, model);
+            session.Process = process;
+            _streamChannels[session.Id] = output;
+            _streamMessages[session.Id] = [];
+        }
+    }
+
+    private void SetupProcessExitHandler(AgentSession session)
+    {
+        session.Process!.EnableRaisingEvents = true;
+        session.Process.Exited += (_, _) =>
+        {
+            session.Status = session.Process.ExitCode == 0
+                ? SessionStatus.Stopped
+                : SessionStatus.Error;
+            logger.LogInformation("Session {Id} exited with code {Code}", session.Id, session.Process.ExitCode);
+            _ = persistence.SaveMetadataAsync(session);
+        };
+    }
+
+    private void UpdateLastUsedAt(Guid sessionId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var session))
+        {
+            session.LastUsedAt = DateTime.UtcNow;
+            // Metadata save is batched — not every single output chunk
+        }
+    }
+
+    private static string StripAnsiCodes(string text) =>
+        Regex.Replace(text, @"\x1B\[[0-9;]*[a-zA-Z]|\x1B\].*?\x07|\x1B[()][A-B]", "");
 }

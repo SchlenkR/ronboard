@@ -1,4 +1,4 @@
-import { Component, inject, effect, viewChild, ElementRef } from '@angular/core';
+import { Component, inject, effect, viewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SessionService } from '../../services/session.service';
 import { MessageRendererComponent } from '../message-renderer/message-renderer.component';
@@ -10,9 +10,10 @@ import { MessageRendererComponent } from '../message-renderer/message-renderer.c
   templateUrl: './stream-view.component.html',
   styleUrl: './stream-view.component.css',
 })
-export class StreamViewComponent {
+export class StreamViewComponent implements AfterViewInit {
   sessionService = inject(SessionService);
   private messageArea = viewChild<ElementRef>('messageArea');
+  private inputRef = viewChild<ElementRef>('input');
 
   constructor() {
     effect(() => {
@@ -24,11 +25,16 @@ export class StreamViewComponent {
     });
   }
 
+  ngAfterViewInit(): void {
+    this.focusInput();
+  }
+
   async send(input: HTMLTextAreaElement): Promise<void> {
     const text = input.value.trim();
     if (text) {
       await this.sessionService.sendMessage(text);
       input.value = '';
+      input.focus();
     }
   }
 
@@ -37,5 +43,9 @@ export class StreamViewComponent {
       event.preventDefault();
       this.send(input);
     }
+  }
+
+  private focusInput(): void {
+    setTimeout(() => this.inputRef()?.nativeElement?.focus(), 50);
   }
 }

@@ -1,48 +1,46 @@
 <div class="sidebar-header">
   <h2>Sessions</h2>
-  <button class="btn-new"
-          (click)="showNewDialog = !showNewDialog"
-          [disabled]="!sessionService.connected()"
-          title="New Session">+</button>
+  <div class="new-session-wrapper">
+    <button class="btn-new"
+            (click)="showDropdown = !showDropdown"
+            [disabled]="!sessionService.connected()"
+            title="New Session">+</button>
+    @if (showDropdown) {
+      <div class="new-dropdown">
+        <button class="dropdown-item" (click)="quickCreate('terminal')">
+          <span class="dropdown-icon">&#9002;</span> Terminal
+        </button>
+        <button class="dropdown-item" (click)="quickCreate('stream')">
+          <span class="dropdown-icon">&#8644;</span> Stream
+        </button>
+      </div>
+    }
+  </div>
 </div>
 
 @if (!sessionService.connected()) {
   <div class="connecting">Connecting to server...</div>
 }
 
-@if (showNewDialog) {
-  <div class="new-session-form">
-    <input #nameInput placeholder="Session name" (keydown.enter)="create(nameInput, dirInput)" />
-    <input #dirInput placeholder="Working directory" value="~/" />
-    <div class="mode-selector">
-      <button class="mode-btn"
-              [class.active]="selectedMode === 'terminal'"
-              (click)="selectedMode = 'terminal'">Terminal</button>
-      <button class="mode-btn"
-              [class.active]="selectedMode === 'stream'"
-              (click)="selectedMode = 'stream'">Stream</button>
-    </div>
-    <div class="form-actions">
-      <button class="btn-create" (click)="create(nameInput, dirInput)">Create</button>
-      <button class="btn-cancel" (click)="showNewDialog = false">Cancel</button>
-    </div>
-  </div>
-}
-
 <div class="session-list">
-  @for (session of sessionService.sessions(); track session.id) {
-    <div class="session-item"
-         [class.active]="session.id === sessionService.activeSessionId()"
-         (click)="sessionService.selectSession(session.id)">
-      <span class="status-dot" [ngClass]="session.status"></span>
-      <div class="session-info">
-        <span class="session-name">{{ session.name }}</span>
-        <span class="session-meta">
-          <span class="session-dir">{{ session.workingDirectory }}</span>
-          <span class="session-mode-tag" [ngClass]="session.mode">{{ session.mode }}</span>
-        </span>
-      </div>
-      <button class="btn-remove" (click)="remove($event, session.id)" title="Remove">&times;</button>
+  @for (group of groupedSessions(); track group.label) {
+    <div class="session-group">
+      <div class="group-header">{{ group.label }}</div>
+      @for (session of group.sessions; track session.id) {
+        <div class="session-item"
+             [class.active]="session.id === sessionService.activeSessionId()"
+             (click)="select(session.id)">
+          <span class="status-dot" [ngClass]="session.status"></span>
+          <div class="session-info">
+            <span class="session-name">#{{ session.number }} {{ session.name }}</span>
+            <span class="session-meta">
+              <span class="session-dir">{{ session.workingDirectory }}</span>
+              <span class="session-mode-tag" [ngClass]="session.mode">{{ session.mode }}</span>
+            </span>
+          </div>
+          <button class="btn-remove" (click)="remove($event, session.id)" title="Remove">&times;</button>
+        </div>
+      }
     </div>
   }
 

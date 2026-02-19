@@ -18,11 +18,13 @@ public enum SessionMode
 public class AgentSession
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public int Number { get; set; }
     public string Name { get; set; } = string.Empty;
     public string WorkingDirectory { get; set; } = string.Empty;
     public SessionStatus Status { get; set; } = SessionStatus.Starting;
     public SessionMode Mode { get; set; } = SessionMode.Terminal;
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    public DateTime LastUsedAt { get; set; } = DateTime.UtcNow;
 
     [System.Text.Json.Serialization.JsonIgnore]
     public System.Diagnostics.Process? Process { get; set; }

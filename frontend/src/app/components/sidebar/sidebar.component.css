@@ -51,59 +51,60 @@
   border-bottom: 1px solid #333;
 }
 
-.new-session-form {
-  padding: 12px 16px;
-  border-bottom: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.new-session-wrapper {
+  position: relative;
 }
 
-.new-session-form input {
-  padding: 6px 10px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background: #1a1a1a;
+.new-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #2d2d2d;
+  border: 1px solid #555;
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 100;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
   color: #e0e0e0;
   font-size: 13px;
-  font-family: inherit;
-}
-
-.new-session-form input:focus {
-  outline: none;
-  border-color: #007acc;
-}
-
-.form-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-create, .btn-cancel {
-  padding: 4px 12px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  font-size: 12px;
   cursor: pointer;
+  text-align: left;
 }
 
-.btn-create {
+.dropdown-item:hover {
   background: #007acc;
   color: #fff;
-  border-color: #007acc;
 }
 
-.btn-create:hover {
-  background: #0098ff;
+.dropdown-item:not(:last-child) {
+  border-bottom: 1px solid #444;
 }
 
-.btn-cancel {
-  background: #2d2d2d;
-  color: #e0e0e0;
+.dropdown-icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
 }
 
-.btn-cancel:hover {
-  background: #3d3d3d;
+.group-header {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 0.5px;
 }
 
 .session-list {
@@ -186,38 +187,6 @@
 .session-mode-tag.terminal { background: #1e3a2a; color: #4ec9b0; }
 .session-mode-tag.stream { background: #1e2a3a; color: #569cd6; }
 
-.mode-selector {
-  display: flex;
-  gap: 0;
-  border: 1px solid #444;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.mode-btn {
-  flex: 1;
-  padding: 5px 0;
-  border: none;
-  background: #1a1a1a;
-  color: #888;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.mode-btn:first-child {
-  border-right: 1px solid #444;
-}
-
-.mode-btn.active {
-  background: #007acc;
-  color: #fff;
-}
-
-.mode-btn:hover:not(.active) {
-  background: #2a2a2a;
-  color: #e0e0e0;
-}
 
 .btn-remove {
   width: 20px;
@@ -249,4 +218,29 @@
   color: #666;
   font-size: 13px;
   text-align: center;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .session-item {
+    min-height: 48px;
+    padding: 12px 16px;
+  }
+
+  .btn-new {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+  }
+
+  .btn-remove {
+    width: 28px;
+    height: 28px;
+    opacity: 1;
+  }
+
+  .dropdown-item {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
 }

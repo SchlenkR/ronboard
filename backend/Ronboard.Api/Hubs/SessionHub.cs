@@ -16,12 +16,10 @@ public class SessionHub(SessionManager sessionManager, ILogger<SessionHub> logge
             ? SessionMode.Stream
             : SessionMode.Terminal;
 
-        var session = sessionManager.CreateSession(name, workingDirectory, sessionMode, model);
+        var session = await sessionManager.CreateSession(name, workingDirectory, sessionMode, model);
 
         if (session.Status != SessionStatus.Error)
         {
-            // Resolve IHubContext NOW while Context is still valid.
-            // Task.Run runs after CreateSession returns, when Context is already disposed.
             var hubContext = Context.GetHttpContext()!.RequestServices
                 .GetRequiredService<IHubContext<SessionHub>>();
 
@@ -35,13 +33,27 @@ public class SessionHub(SessionManager sessionManager, ILogger<SessionHub> logge
         return session;
     }
 
-    // Terminal mode: raw keystrokes
+    public async Task<AgentSession> ResumeSession(Guid sessionId)
+    {
+        var hubContext = Context.GetHttpContext()!.RequestServices
+            .GetRequiredService<IHubContext<SessionHub>>();
+
+        var session = await sessionManager.ResumeSessionAsync(sessionId);
+
+        if (session.Mode == SessionMode.Terminal)
+            _ = Task.Run(() => BroadcastTerminalOutput(session.Id, hubContext));
+        else
+            _ = Task.Run(() => BroadcastStreamOutput(session.Id, hubContext));
+
+        await Clients.All.SendAsync("SessionResumed", session);
+        return session;
+    }
+
     public async Task SendInput(Guid sessionId, string data)
     {
         await sessionManager.SendInputAsync(sessionId, data);
     }
 
-    // Stream mode: user message text
     public async Task SendMessage(Guid sessionId, string message)
     {
         await sessionManager.SendStreamMessageAsync(sessionId, message);
