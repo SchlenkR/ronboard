@@ -1,0 +1,11 @@
+{
+  "name": "ronboard",
+  "private": true,
+  "scripts": {
+    "backend": "dotnet run --project backend/Ronboard.Api",
+    "frontend": "cd frontend && npx ng serve",
+    "frontend:build": "cd frontend && npx ng build",
+    "dev": "npm run backend & npm run frontend",
+    "install:frontend": "cd frontend && npm install"
+  }
+}

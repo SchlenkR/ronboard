@@ -1,0 +1,99 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: Start",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "backend/Ronboard.Api"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "dotnet",
+        "pattern": {
+          "regexp": "^(.*)\\((\\d+),(\\d+)\\): (error|warning) (.+): (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Building\\.\\.\\.$",
+          "endsPattern": "^.*Now listening on.*$"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "label": "Backend",
+        "group": "ronboard",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Backend: Build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "backend/Ronboard.Api"],
+      "problemMatcher": "$msCompile",
+      "group": "build",
+      "presentation": {
+        "label": "Backend Build",
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Frontend: Start",
+      "type": "shell",
+      "command": "npx ng serve",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "(.*?)",
+          "endsPattern": "bundle generation complete"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "label": "Frontend",
+        "group": "ronboard",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Frontend: Build",
+      "type": "shell",
+      "command": "npx ng build",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": "$tsc",
+      "group": "build",
+      "presentation": {
+        "label": "Frontend Build",
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Start All",
+      "dependsOn": ["Backend: Start", "Frontend: Start"],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

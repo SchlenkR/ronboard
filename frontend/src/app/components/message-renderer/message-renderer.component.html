@@ -1,0 +1,26 @@
+@if (isHidden) {
+  <!-- suppress noise events -->
+} @else if (isTextDelta) {
+  <span class="text-delta">{{ textDelta }}</span>
+} @else if (isToolUse) {
+  <div class="tool-use">
+    <span class="tool-badge">tool</span>
+    <span class="tool-name">{{ toolName }}</span>
+  </div>
+} @else if (isInputJsonDelta) {
+  <span class="input-json-delta">{{ inputJsonDelta }}</span>
+} @else if (isToolResult) {
+  <div class="tool-result-marker">
+    <span class="result-badge">result</span>
+  </div>
+} @else if (isResult) {
+  <div class="result-block">
+    <div class="result-divider"></div>
+    <span class="result-label">Done</span>
+  </div>
+} @else {
+  <details class="raw-message">
+    <summary class="raw-type">{{ fallbackLabel }}</summary>
+    <pre class="raw-json">{{ message.rawJson | json }}</pre>
+  </details>
+}

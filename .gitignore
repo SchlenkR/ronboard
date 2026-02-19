@@ -1,0 +1,20 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# IDE
+.idea/
+.vs/
+*.swp
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+.fake

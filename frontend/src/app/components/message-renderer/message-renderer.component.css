@@ -1,0 +1,107 @@
+:host {
+  display: inline;
+}
+
+.text-delta {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d4d4d4;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tool-use {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px 0;
+  padding: 6px 10px;
+  background: #1e3a5f;
+  border-radius: 4px;
+  border-left: 3px solid #569cd6;
+}
+
+.tool-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  background: #569cd6;
+  color: #1e1e1e;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.tool-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #9cdcfe;
+}
+
+.input-json-delta {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #9cdcfe;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.tool-result-marker {
+  margin: 4px 0;
+}
+
+.result-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  background: #4ec9b0;
+  color: #1e1e1e;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.result-block {
+  margin: 16px 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.result-divider {
+  flex: 1;
+  height: 1px;
+  background: #444;
+}
+
+.result-label {
+  color: #4ec9b0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.raw-message {
+  margin: 4px 0;
+}
+
+.raw-type {
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.raw-type:hover {
+  color: #bbb;
+}
+
+.raw-json {
+  color: #888;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  background: #1a1a1a;
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 200px;
+}

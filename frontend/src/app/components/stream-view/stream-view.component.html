@@ -1,0 +1,21 @@
+<div class="message-area" #messageArea>
+  @for (msg of sessionService.messages(); track msg.index) {
+    <app-message-renderer [message]="msg" />
+  }
+
+  @if (sessionService.messages().length === 0) {
+    <div class="waiting">Waiting for Claude...</div>
+  }
+</div>
+
+<div class="input-area">
+  <textarea #input
+            class="message-input"
+            placeholder="Send a message... (Enter to send, Shift+Enter for newline)"
+            (keydown)="onKeydown($event, input)"
+            [disabled]="sessionService.activeSession()?.status !== 'running'"
+            rows="1"></textarea>
+  <button class="btn-send"
+          (click)="send(input)"
+          [disabled]="sessionService.activeSession()?.status !== 'running'">Send</button>
+</div>
