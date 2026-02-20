@@ -39,9 +39,11 @@
   color: #e0e0e0;
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
+  line-height: 1.5;
   resize: none;
-  min-height: 20px;
-  max-height: 120px;
+  overflow-y: auto;
+  /* 10 lines max: 13px * 1.5 * 10 + 16px padding = ~211px */
+  max-height: 211px;
 }
 
 .message-input:focus {
@@ -72,4 +74,11 @@
 .btn-send:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+@media (max-width: 768px) {
+  .message-input {
+    /* 3 lines max: 13px * 1.5 * 3 + 16px padding = ~74px */
+    max-height: 74px;
+  }
 }

@@ -9,8 +9,7 @@ public class ClaudeProcessService(ILogger<ClaudeProcessService> logger)
 {
     // ── Terminal mode: PTY via `script`, raw byte relay ──
 
-    public (Process Process, ChannelReader<string> Output) StartTerminalProcess(
-        string workingDirectory, string? model = null)
+    public (Process Process, ChannelReader<string> Output) StartTerminalProcess(string workingDirectory, string? model = null)
     {
         var resolvedDir = ExpandPath(workingDirectory);
         if (!Directory.Exists(resolvedDir))
@@ -72,8 +71,7 @@ public class ClaudeProcessService(ILogger<ClaudeProcessService> logger)
 
     // ── Stream mode: structured JSON via --print --stream-json ──
 
-    public (Process Process, ChannelReader<ClaudeMessage> Output) StartStreamProcess(
-        string workingDirectory, string? model = null)
+    public (Process Process, ChannelReader<ClaudeMessage> Output) StartStreamProcess(string workingDirectory, string? model = null)
     {
         var resolvedDir = ExpandPath(workingDirectory);
         if (!Directory.Exists(resolvedDir))

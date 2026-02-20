@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.AspNetCore.SignalR;
 using Ronboard.Api.Hubs;
+using Ronboard.Api.Prompts;
 
 public class AutoNamingService(
     ILogger<AutoNamingService> logger,
@@ -58,9 +59,6 @@ public class AutoNamingService(
 
     private async Task<string> GenerateTitleAsync(string text)
     {
-        // Truncate to keep the prompt short
-        var snippet = text.Length > 500 ? text[..500] : text;
-
         var shell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/zsh";
 
         var psi = new ProcessStartInfo
@@ -77,8 +75,7 @@ public class AutoNamingService(
         using var process = new Process { StartInfo = psi };
         process.Start();
 
-        var prompt = $"Given this conversation snippet, suggest a very short title (2-4 words, no quotes, no punctuation, no explanation - ONLY the title):\n\n{snippet}";
-        await process.StandardInput.WriteAsync(prompt);
+        await process.StandardInput.WriteAsync(NamingPrompt.Build(text));
         process.StandardInput.Close();
 
         var output = await process.StandardOutput.ReadToEndAsync();

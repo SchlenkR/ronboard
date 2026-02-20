@@ -6,7 +6,7 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 import { Subject, BehaviorSubject } from 'rxjs';
-import { AgentSession, SessionMode } from '../models/session.model';
+import { AgentSession } from '../models/session.model';
 import { ClaudeMessage } from '../models/claude-message.model';
 import { environment } from '../../environments/environment';
 
@@ -14,7 +14,7 @@ import { environment } from '../../environments/environment';
 export class SignalRService implements OnDestroy {
   private connection: HubConnection;
 
-  // Session lifecycle
+  // Server → Client events
   readonly sessionCreated$ = new Subject<AgentSession>();
   readonly sessionStopped$ = new Subject<string>();
   readonly sessionRemoved$ = new Subject<string>();
@@ -23,11 +23,8 @@ export class SignalRService implements OnDestroy {
   readonly sessionRenamed$ = new Subject<{ sessionId: string; name: string }>();
   readonly connected$ = new BehaviorSubject<boolean>(false);
 
-  // Terminal mode events
   readonly terminalOutput$ = new Subject<{ sessionId: string; data: string }>();
   readonly terminalHistory$ = new Subject<string>();
-
-  // Stream mode events
   readonly streamMessage$ = new Subject<{ sessionId: string; message: ClaudeMessage }>();
   readonly streamHistory$ = new Subject<ClaudeMessage[]>();
 
@@ -46,30 +43,17 @@ export class SignalRService implements OnDestroy {
   }
 
   private registerHandlers(): void {
-    this.connection.on('SessionCreated', (session: AgentSession) =>
-      this.sessionCreated$.next(session));
-    this.connection.on('SessionStopped', (id: string) =>
-      this.sessionStopped$.next(id));
-    this.connection.on('SessionRemoved', (id: string) =>
-      this.sessionRemoved$.next(id));
-    this.connection.on('SessionEnded', (id: string) =>
-      this.sessionEnded$.next(id));
-    this.connection.on('SessionResumed', (session: AgentSession) =>
-      this.sessionResumed$.next(session));
-    this.connection.on('SessionRenamed', (sessionId: string, name: string) =>
-      this.sessionRenamed$.next({ sessionId, name }));
+    this.connection.on('SessionCreated', (s: AgentSession) => this.sessionCreated$.next(s));
+    this.connection.on('SessionStopped', (id: string) => this.sessionStopped$.next(id));
+    this.connection.on('SessionRemoved', (id: string) => this.sessionRemoved$.next(id));
+    this.connection.on('SessionEnded', (id: string) => this.sessionEnded$.next(id));
+    this.connection.on('SessionResumed', (s: AgentSession) => this.sessionResumed$.next(s));
+    this.connection.on('SessionRenamed', (id: string, name: string) => this.sessionRenamed$.next({ sessionId: id, name }));
 
-    // Terminal mode
-    this.connection.on('TerminalOutput', (sessionId: string, data: string) =>
-      this.terminalOutput$.next({ sessionId, data }));
-    this.connection.on('TerminalHistory', (history: string) =>
-      this.terminalHistory$.next(history));
-
-    // Stream mode
-    this.connection.on('StreamMessage', (sessionId: string, msg: ClaudeMessage) =>
-      this.streamMessage$.next({ sessionId, message: msg }));
-    this.connection.on('StreamHistory', (messages: ClaudeMessage[]) =>
-      this.streamHistory$.next(messages));
+    this.connection.on('TerminalOutput', (id: string, data: string) => this.terminalOutput$.next({ sessionId: id, data }));
+    this.connection.on('TerminalHistory', (history: string) => this.terminalHistory$.next(history));
+    this.connection.on('StreamMessage', (id: string, msg: ClaudeMessage) => this.streamMessage$.next({ sessionId: id, message: msg }));
+    this.connection.on('StreamHistory', (msgs: ClaudeMessage[]) => this.streamHistory$.next(msgs));
   }
 
   private async start(): Promise<void> {
@@ -82,43 +66,22 @@ export class SignalRService implements OnDestroy {
     }
   }
 
-  async getSessions(): Promise<AgentSession[]> {
-    return this.connection.invoke<AgentSession[]>('GetSessions');
-  }
-
-  async createSession(name: string, workingDirectory: string,
-    mode: SessionMode = 'terminal', model?: string): Promise<AgentSession> {
-    return this.connection.invoke<AgentSession>('CreateSession', name, workingDirectory, mode, model ?? null);
-  }
-
-  // Terminal mode: raw keystrokes
+  // Real-time bidirectional I/O
   async sendInput(sessionId: string, data: string): Promise<void> {
     await this.connection.invoke('SendInput', sessionId, data);
   }
 
-  // Stream mode: text message
   async sendMessage(sessionId: string, message: string): Promise<void> {
     await this.connection.invoke('SendMessage', sessionId, message);
   }
 
+  // Group management (needs ConnectionId)
   async joinSession(sessionId: string): Promise<void> {
     await this.connection.invoke('JoinSession', sessionId);
   }
 
   async leaveSession(sessionId: string): Promise<void> {
     await this.connection.invoke('LeaveSession', sessionId);
-  }
-
-  async stopSession(sessionId: string): Promise<void> {
-    await this.connection.invoke('StopSession', sessionId);
-  }
-
-  async removeSession(sessionId: string): Promise<void> {
-    await this.connection.invoke('RemoveSession', sessionId);
-  }
-
-  async resumeSession(sessionId: string): Promise<AgentSession> {
-    return this.connection.invoke<AgentSession>('ResumeSession', sessionId);
   }
 
   ngOnDestroy(): void {

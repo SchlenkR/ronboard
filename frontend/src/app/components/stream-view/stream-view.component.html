@@ -13,6 +13,7 @@
             class="message-input"
             placeholder="Send a message... (Enter to send, Shift+Enter for newline)"
             (keydown)="onKeydown($event, input)"
+            (input)="autoResize(input)"
             [disabled]="sessionService.activeSession()?.status !== 'running'"
             rows="1"></textarea>
   <button class="btn-send"

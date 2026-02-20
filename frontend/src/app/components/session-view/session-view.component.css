@@ -111,3 +111,18 @@
   margin: 0;
   font-size: 14px;
 }
+
+@media (max-width: 768px) {
+  .session-header {
+    padding-left: 56px;
+  }
+
+  .header-info {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .working-dir {
+    display: none;
+  }
+}

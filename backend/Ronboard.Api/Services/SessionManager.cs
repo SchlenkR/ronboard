@@ -2,9 +2,11 @@ namespace Ronboard.Api.Services;
 
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Ronboard.Api.Models;
+using Ronboard.Api.Prompts;
 
 public class SessionManager(
     ClaudeProcessService processService,
@@ -71,8 +73,7 @@ public class SessionManager(
 
     // ── Session lifecycle ──
 
-    public async Task<AgentSession> CreateSession(string name, string workingDirectory,
-        SessionMode mode = SessionMode.Terminal, string? model = null)
+    public async Task<AgentSession> CreateSession(string name, string workingDirectory, SessionMode mode = SessionMode.Terminal, string? model = null)
     {
         var number = await persistence.GetNextNumberAsync();
 
@@ -116,21 +117,42 @@ public class SessionManager(
     {
         if (_sessions.TryGetValue(sessionId, out var session) && session.Process is not null)
         {
+            // Store user message in stream history (for persistence + replay)
+            var userMsg = CreateUserMessage(sessionId, message);
+            AppendStreamMessage(sessionId, userMsg);
+
             await processService.SendStreamMessageAsync(session.Process, message);
             _ = persistence.AppendStreamInputAsync(sessionId, message);
             UpdateLastUsedAt(sessionId);
         }
     }
 
+    private ClaudeMessage CreateUserMessage(Guid sessionId, string text)
+    {
+        var nextIndex = _streamMessages.TryGetValue(sessionId, out var msgs) ? msgs.Count : 0;
+        var rawJson = JsonSerializer.SerializeToElement(new { text });
+        return new ClaudeMessage { Index = nextIndex, Type = "user_message", RawJson = rawJson };
+    }
+
     public void StopSession(Guid sessionId)
     {
-        if (_sessions.TryGetValue(sessionId, out var session) && session.Process is not null)
+        if (!_sessions.TryGetValue(sessionId, out var session)) return;
+        if (session.Process is not null && !session.Process.HasExited)
         {
             try { session.Process.Kill(entireProcessTree: true); }
             catch (Exception ex) { logger.LogWarning(ex, "Error killing session {Id}", sessionId); }
-            session.Status = SessionStatus.Stopped;
-            _ = persistence.SaveMetadataAsync(session);
         }
+        session.Status = SessionStatus.Stopped;
+        _ = persistence.SaveMetadataAsync(session);
+    }
+
+    public async Task RenameSession(Guid sessionId, string name)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+            throw new InvalidOperationException("Session not found");
+
+        session.Name = name;
+        await persistence.SaveMetadataAsync(session);
     }
 
     public bool RemoveSession(Guid sessionId)
@@ -193,8 +215,8 @@ public class SessionManager(
                 var stripped = StripAnsiCodes(context);
                 if (!string.IsNullOrWhiteSpace(stripped))
                 {
-                    var resumePrompt = $"Here is our previous conversation for context. Please continue:\n\n{stripped}\n";
-                    // Wait a moment for Claude to initialize
+                    var resumePrompt = ResumePrompt.Build(inputs);
+                    // Wait for Claude to initialize
                     await Task.Delay(2000);
                     await processService.SendInputAsync(process, resumePrompt);
                 }
@@ -209,11 +231,7 @@ public class SessionManager(
 
             if (inputs.Count > 0)
             {
-                var summary = new StringBuilder();
-                foreach (var input in inputs)
-                    summary.AppendLine($"User: {input}");
-
-                var resumePrompt = $"Here is our previous conversation for context. Please continue from where we left off:\n\n{summary}";
+                var resumePrompt = ResumePrompt.Build(inputs);
                 await processService.SendStreamMessageAsync(process, resumePrompt);
             }
         }

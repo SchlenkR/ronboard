@@ -34,6 +34,7 @@ export class StreamViewComponent implements AfterViewInit {
     if (text) {
       await this.sessionService.sendMessage(text);
       input.value = '';
+      this.autoResize(input);
       input.focus();
     }
   }
@@ -43,6 +44,11 @@ export class StreamViewComponent implements AfterViewInit {
       event.preventDefault();
       this.send(input);
     }
+  }
+
+  autoResize(textarea: HTMLTextAreaElement): void {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
   }
 
   private focusInput(): void {

@@ -2,6 +2,21 @@
   display: inline;
 }
 
+.user-message {
+  display: block;
+  margin: 12px 0 8px 0;
+  padding: 8px 12px;
+  background: #2d2d2d;
+  border-left: 3px solid #dcdcaa;
+  border-radius: 4px;
+  color: #dcdcaa;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .text-delta {
   white-space: pre-wrap;
   word-break: break-word;

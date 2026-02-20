@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Ronboard.Api.Endpoints;
 using Ronboard.Api.Hubs;
 using Ronboard.Api.Services;
 
@@ -43,6 +44,7 @@ app.UseWebSockets();
 app.UseCors("Frontend");
 
 app.MapHub<SessionHub>("/hubs/session").RequireCors("Frontend");
+app.MapSessionApi();
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {

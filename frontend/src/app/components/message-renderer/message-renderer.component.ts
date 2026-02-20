@@ -59,6 +59,14 @@ export class MessageRendererComponent {
       && this.eventData?.content_block?.type === 'tool_result';
   }
 
+  get isUserMessage(): boolean {
+    return this.message.type === 'user_message';
+  }
+
+  get userMessageText(): string {
+    return this.message.rawJson?.text ?? '';
+  }
+
   get isResult(): boolean {
     return this.message.type === 'result';
   }

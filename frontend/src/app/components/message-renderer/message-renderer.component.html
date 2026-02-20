@@ -1,5 +1,7 @@
 @if (isHidden) {
   <!-- suppress noise events -->
+} @else if (isUserMessage) {
+  <div class="user-message">{{ userMessageText }}</div>
 } @else if (isTextDelta) {
   <span class="text-delta">{{ textDelta }}</span>
 } @else if (isToolUse) {
