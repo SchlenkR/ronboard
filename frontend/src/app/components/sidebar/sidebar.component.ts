@@ -1,7 +1,7 @@
 import { Component, inject, computed, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SessionService } from '../../services/session.service';
-import { AgentSession, SessionMode } from '../../models/session.model';
+import { AgentSession } from '../../models/session.model';
 
 interface SessionGroup {
   label: string;
@@ -18,7 +18,6 @@ interface SessionGroup {
 export class SidebarComponent {
   sessionService = inject(SessionService);
   sessionSelected = output<void>();
-  showDropdown = false;
 
   groupedSessions = computed<SessionGroup[]>(() => {
     const sessions = this.sessionService.sessions();
@@ -50,9 +49,8 @@ export class SidebarComponent {
       .map(([label, sessions]) => ({ label, sessions }));
   });
 
-  async quickCreate(mode: SessionMode): Promise<void> {
-    this.showDropdown = false;
-    await this.sessionService.createSession('Untitled', '~/', mode);
+  async quickCreate(): Promise<void> {
+    await this.sessionService.createSession('Untitled', '~/');
     this.sessionSelected.emit();
   }
 

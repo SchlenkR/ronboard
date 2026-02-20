@@ -1,21 +1,9 @@
 <div class="sidebar-header">
   <h2>Sessions</h2>
-  <div class="new-session-wrapper">
-    <button class="btn-new"
-            (click)="showDropdown = !showDropdown"
-            [disabled]="!sessionService.connected()"
-            title="New Session">+</button>
-    @if (showDropdown) {
-      <div class="new-dropdown">
-        <button class="dropdown-item" (click)="quickCreate('terminal')">
-          <span class="dropdown-icon">&#9002;</span> Terminal
-        </button>
-        <button class="dropdown-item" (click)="quickCreate('stream')">
-          <span class="dropdown-icon">&#8644;</span> Stream
-        </button>
-      </div>
-    }
-  </div>
+  <button class="btn-new"
+          (click)="quickCreate()"
+          [disabled]="!sessionService.connected()"
+          title="New Session">+</button>
 </div>
 
 @if (!sessionService.connected()) {
@@ -43,7 +31,6 @@
           </div>
           <div class="card-bottom">
             <span class="session-dir">{{ session.workingDirectory }}</span>
-            <span class="session-mode-tag" [ngClass]="session.mode">{{ session.mode }}</span>
           </div>
         </div>
       }

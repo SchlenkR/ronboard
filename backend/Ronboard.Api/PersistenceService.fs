@@ -106,32 +106,6 @@ type PersistenceService(logger: ILogger<PersistenceService>) =
                 Directory.Delete(dir, true)
         }
 
-    member _.AppendTerminalOutputAsync(sessionId: Guid, data: string) =
-        task {
-            let path = Path.Combine(getSessionDir sessionId, "terminal.log")
-            do! File.AppendAllTextAsync(path, data)
-        }
-
-    member _.AppendTerminalInputAsync(sessionId: Guid, data: string) =
-        task {
-            let path = Path.Combine(getSessionDir sessionId, "stdin.log")
-
-            let entry =
-                JsonSerializer.Serialize({| timestamp = DateTime.UtcNow; input = data |}, ndjsonOptions)
-
-            do! File.AppendAllTextAsync(path, entry + "\n")
-        }
-
-    member _.LoadTerminalHistoryAsync(sessionId: Guid) =
-        task {
-            let path = Path.Combine(getSessionDir sessionId, "terminal.log")
-
-            if File.Exists path then
-                return! File.ReadAllTextAsync(path)
-            else
-                return ""
-        }
-
     member _.AppendStreamMessageAsync(sessionId: Guid, message: ClaudeMessage) =
         task {
             let path = Path.Combine(getSessionDir sessionId, "stream.ndjson")
@@ -174,27 +148,3 @@ type PersistenceService(logger: ILogger<PersistenceService>) =
             return messages |> Seq.toList
         }
 
-    member _.LoadInputHistoryAsync(sessionId: Guid) =
-        task {
-            let path = Path.Combine(getSessionDir sessionId, "stdin.log")
-            let inputs = ResizeArray<string>()
-
-            if File.Exists path then
-                let! lines = File.ReadAllLinesAsync(path)
-
-                for line in lines do
-                    if not (String.IsNullOrWhiteSpace line) then
-                        try
-                            use doc = JsonDocument.Parse(line)
-                            let root = doc.RootElement
-                            let mutable v = Unchecked.defaultof<JsonElement>
-
-                            if root.TryGetProperty("message", &v) then
-                                inputs.Add(v.GetString() |> Option.ofObj |> Option.defaultValue "")
-                            elif root.TryGetProperty("input", &v) then
-                                inputs.Add(v.GetString() |> Option.ofObj |> Option.defaultValue "")
-                        with
-                        | _ -> ()
-
-            return inputs |> Seq.toList
-        }

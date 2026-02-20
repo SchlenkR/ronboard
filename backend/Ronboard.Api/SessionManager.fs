@@ -4,14 +4,12 @@ open System
 open System.Collections.Concurrent
 open System.Text
 open System.Text.Json
-open System.Text.RegularExpressions
 open System.Threading
 open System.Threading.Channels
 open Microsoft.AspNetCore.SignalR
 open Microsoft.Extensions.Logging
 open Ronboard.Api.Hubs
 open Ronboard.Api.Models
-open Ronboard.Api.Prompts
 
 [<AutoOpen>]
 module private HubHelpers =
@@ -27,10 +25,6 @@ type SessionManager
     ) =
 
     let sessions = ConcurrentDictionary<Guid, AgentSession>()
-
-    // Terminal mode
-    let terminalChannels = ConcurrentDictionary<Guid, ChannelReader<string>>()
-    let terminalBuffers = ConcurrentDictionary<Guid, ResizeArray<string>>()
 
     // Stream mode
     let streamChannels = ConcurrentDictionary<Guid, ChannelReader<ClaudeMessage>>()
@@ -63,40 +57,25 @@ type SessionManager
                 let exitCode = proc.ExitCode
 
                 logger.LogInformation(
-                    "Session {Id} (mode={Mode}) exited with code {Code}",
+                    "Session {Id} exited with code {Code}",
                     session.Id,
-                    session.Mode,
                     exitCode
                 )
 
                 if exitCode <> 0 then
                     session.Status <- Error
-                    persistence.SaveMetadataAsync(session) |> ignore
-                elif session.Mode = Terminal then
-                    session.Status <- Stopped
                     persistence.SaveMetadataAsync(session) |> ignore)
         | None -> ()
 
-    let startProcess (session: AgentSession) (mode: SessionMode) (workingDirectory: string) (model: string option) =
-        match mode with
-        | Terminal ->
-            let struct (proc, output) =
-                match model with
-                | Some m -> processService.StartTerminalProcess(workingDirectory, m)
-                | None -> processService.StartTerminalProcess(workingDirectory)
+    let startProcess (session: AgentSession) (workingDirectory: string) (model: string option) =
+        let struct (proc, output) =
+            match model with
+            | Some m -> processService.StartStreamProcess(workingDirectory, session.Id, false, m)
+            | None -> processService.StartStreamProcess(workingDirectory, session.Id, false)
 
-            session.Process <- Some proc
-            terminalChannels.[session.Id] <- output
-            terminalBuffers.[session.Id] <- ResizeArray<string>()
-        | Stream ->
-            let struct (proc, output) =
-                match model with
-                | Some m -> processService.StartStreamProcess(workingDirectory, session.Id, false, m)
-                | None -> processService.StartStreamProcess(workingDirectory, session.Id, false)
-
-            session.Process <- Some proc
-            streamChannels.[session.Id] <- output
-            streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>()
+        session.Process <- Some proc
+        streamChannels.[session.Id] <- output
+        streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>()
 
     let createUserMessage (sessionId: Guid) (text: string) =
         let nextIndex =
@@ -111,15 +90,6 @@ type SessionManager
           Type = "user_message"
           RawJson = rawJson }
 
-    let appendTerminalOutputInternal (id: Guid) (data: string) =
-        match terminalBuffers.TryGetValue(id) with
-        | true, buffer -> lock buffer (fun () -> buffer.Add(data))
-        | _ -> ()
-
-        persistence.AppendTerminalOutputAsync(id, data) |> ignore
-        updateLastUsedAt id
-        notifyOutputReceived id
-
     let appendStreamMessageInternal (id: Guid) (msg: ClaudeMessage) =
         match streamMessages.TryGetValue(id) with
         | true, msgs -> lock msgs (fun () -> msgs.Add(msg))
@@ -128,11 +98,6 @@ type SessionManager
         persistence.AppendStreamMessageAsync(id, msg) |> ignore
         updateLastUsedAt id
         notifyOutputReceived id
-
-    let getTerminalHistoryInternal (id: Guid) =
-        match terminalBuffers.TryGetValue(id) with
-        | true, buffer -> lock buffer (fun () -> String.Concat(buffer))
-        | _ -> ""
 
     let getStreamHistoryInternal (id: Guid) =
         match streamMessages.TryGetValue(id) with
@@ -286,60 +251,25 @@ type SessionManager
 
     member _.SetActivityState(id: Guid, state: ActivityState) = setActivityStateInternal id state
 
-    member _.GetTerminalChannel(id: Guid) =
-        match terminalChannels.TryGetValue(id) with
-        | true, ch -> Some ch
-        | _ -> None
-
-    member _.GetTerminalHistory(id: Guid) = getTerminalHistoryInternal id
-    member _.AppendTerminalOutput(id: Guid, data: string) = appendTerminalOutputInternal id data
     member _.GetStreamHistory(id: Guid) = getStreamHistoryInternal id
     member _.AppendStreamMessage(id: Guid, msg: ClaudeMessage) = appendStreamMessageInternal id msg
 
-    member _.CreateSession(name: string, workingDirectory: string, ?mode: SessionMode, ?model: string) =
+    member _.CreateSession(name: string, workingDirectory: string, ?model: string) =
         task {
-            let mode = defaultArg mode Terminal
             let! number = persistence.GetNextNumberAsync()
 
             let session =
                 { AgentSession.create () with
                     Number = number
                     Name = name
-                    WorkingDirectory = workingDirectory
-                    Mode = mode }
+                    WorkingDirectory = workingDirectory }
 
-            match mode with
-            | Stream ->
-                session.Status <- Running
-                sessions.[session.Id] <- session
-                streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>()
-            | Terminal ->
-                try
-                    startProcess session mode workingDirectory model
-                    session.Status <- Running
-                    sessions.[session.Id] <- session
-                    setupProcessExitHandler session
-                with
-                | ex ->
-                    logger.LogError(ex, "Failed to start Claude process for session {Id}", session.Id)
-                    session.Status <- Error
-                    sessions.[session.Id] <- session
+            session.Status <- Running
+            sessions.[session.Id] <- session
+            streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>()
 
             do! persistence.SaveMetadataAsync(session)
             return session
-        }
-
-    member _.SendInputAsync(sessionId: Guid, data: string) =
-        task {
-            match sessions.TryGetValue(sessionId) with
-            | true, session ->
-                match session.Process with
-                | Some proc ->
-                    do! processService.SendInputAsync(proc, data)
-                    persistence.AppendTerminalInputAsync(sessionId, data) |> ignore
-                    updateLastUsedAt sessionId
-                | None -> ()
-            | _ -> ()
         }
 
     member _.SendStreamMessageAsync(sessionId: Guid, message: string) =
@@ -383,8 +313,6 @@ type SessionManager
 
     member this.RemoveSession(sessionId: Guid) =
         this.StopSession(sessionId)
-        terminalChannels.TryRemove(sessionId) |> ignore
-        terminalBuffers.TryRemove(sessionId) |> ignore
         streamChannels.TryRemove(sessionId) |> ignore
         streamMessages.TryRemove(sessionId) |> ignore
         activityStates.TryRemove(sessionId) |> ignore
@@ -401,19 +329,8 @@ type SessionManager
 
             for session in loaded do
                 sessions.[session.Id] <- session
-
-                match session.Mode with
-                | Terminal ->
-                    let! history = persistence.LoadTerminalHistoryAsync(session.Id)
-
-                    terminalBuffers.[session.Id] <-
-                        if String.IsNullOrEmpty history then
-                            ResizeArray<string>()
-                        else
-                            ResizeArray<string>([ history ])
-                | Stream ->
-                    let! msgs = persistence.LoadStreamHistoryAsync(session.Id)
-                    streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>(msgs)
+                let! msgs = persistence.LoadStreamHistoryAsync(session.Id)
+                streamMessages.[session.Id] <- ResizeArray<ClaudeMessage>(msgs)
 
             logger.LogInformation("Loaded {Count} persisted sessions", loaded.Length)
         }
@@ -433,31 +350,10 @@ type SessionManager
                 return session
             else
 
-            match session.Mode with
-            | Terminal ->
-                let! inputs = persistence.LoadInputHistoryAsync(sessionId)
-
-                let struct (proc, output) =
-                    processService.StartTerminalProcess(session.WorkingDirectory)
-
-                session.Process <- Some proc
-                terminalChannels.[session.Id] <- output
-
-                if inputs.Length > 0 then
-                    let context = String.Join("\n", inputs)
-                    let stripped = SessionManager.StripAnsiCodes(context)
-
-                    if not (String.IsNullOrWhiteSpace stripped) then
-                        let resumePrompt = ResumePrompt.build inputs
-                        do! Threading.Tasks.Task.Delay(2000)
-                        do! processService.SendInputAsync(proc, resumePrompt)
-
-                setupProcessExitHandler session
-            | Stream ->
-                logger.LogInformation(
-                    "ResumeSession (stream): session {Id} set to Running, process starts on next message",
-                    sessionId
-                )
+            logger.LogInformation(
+                "ResumeSession: session {Id} set to Running, process starts on next message",
+                sessionId
+            )
 
             session.Status <- Running
             session.LastUsedAt <- DateTime.UtcNow
@@ -469,38 +365,33 @@ type SessionManager
     member this.GetAccumulatedText(sessionId: Guid) =
         match this.Get(sessionId) with
         | None -> ""
-        | Some session ->
-            match session.Mode with
-            | Terminal ->
-                let raw = getTerminalHistoryInternal sessionId
-                SessionManager.StripAnsiCodes(raw)
-            | Stream ->
-                let msgs = getStreamHistoryInternal sessionId
-                let sb = StringBuilder()
+        | Some _ ->
+            let msgs = getStreamHistoryInternal sessionId
+            let sb = StringBuilder()
 
-                for msg in msgs do
-                    if msg.Type = "stream_event" then
-                        try
-                            let mutable evt = Unchecked.defaultof<JsonElement>
-                            let mutable t = Unchecked.defaultof<JsonElement>
-                            let mutable delta = Unchecked.defaultof<JsonElement>
-                            let mutable dt = Unchecked.defaultof<JsonElement>
-                            let mutable text = Unchecked.defaultof<JsonElement>
+            for msg in msgs do
+                if msg.Type = "stream_event" then
+                    try
+                        let mutable evt = Unchecked.defaultof<JsonElement>
+                        let mutable t = Unchecked.defaultof<JsonElement>
+                        let mutable delta = Unchecked.defaultof<JsonElement>
+                        let mutable dt = Unchecked.defaultof<JsonElement>
+                        let mutable text = Unchecked.defaultof<JsonElement>
 
-                            if
-                                msg.RawJson.TryGetProperty("event", &evt)
-                                && evt.TryGetProperty("type", &t)
-                                && t.GetString() = "content_block_delta"
-                                && evt.TryGetProperty("delta", &delta)
-                                && delta.TryGetProperty("type", &dt)
-                                && dt.GetString() = "text_delta"
-                                && delta.TryGetProperty("text", &text)
-                            then
-                                sb.Append(text.GetString()) |> ignore
-                        with
-                        | _ -> ()
+                        if
+                            msg.RawJson.TryGetProperty("event", &evt)
+                            && evt.TryGetProperty("type", &t)
+                            && t.GetString() = "content_block_delta"
+                            && evt.TryGetProperty("delta", &delta)
+                            && delta.TryGetProperty("type", &dt)
+                            && dt.GetString() = "text_delta"
+                            && delta.TryGetProperty("text", &text)
+                        then
+                            sb.Append(text.GetString()) |> ignore
+                    with
+                    | _ -> ()
 
-                sb.ToString()
+            sb.ToString()
 
     member _.BroadcastStreamOutput(sessionId: Guid) = broadcastStreamOutputInternal sessionId
 
@@ -548,13 +439,8 @@ type SessionManager
         | ActivityState.Busy -> "busy"
         | ActivityState.ToolUse -> "tool_use"
 
-    static member StripAnsiCodes(text: string) =
-        Regex.Replace(text, @"\x1B\[[0-9;]*[a-zA-Z]|\x1B\].*?\x07|\x1B[()][A-B]", "")
-
     interface ISessionOperations with
-        member this.SendInputAsync(sessionId, data) = this.SendInputAsync(sessionId, data)
         member this.SendStreamMessageAsync(sessionId, message) = this.SendStreamMessageAsync(sessionId, message)
         member this.Get(id) = this.Get(id)
-        member this.GetTerminalHistory(id) = this.GetTerminalHistory(id)
         member this.GetStreamHistory(id) = this.GetStreamHistory(id)
         member this.GetActivityState(id) = this.GetActivityState(id)

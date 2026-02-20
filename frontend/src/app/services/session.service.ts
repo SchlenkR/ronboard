@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { SignalRService } from './signalr.service';
 import { ApiService } from './api.service';
-import { AgentSession, SessionMode, SessionStatus } from '../models/session.model';
+import { AgentSession, SessionStatus } from '../models/session.model';
 import { ClaudeMessage } from '../models/claude-message.model';
 
 @Injectable({ providedIn: 'root' })
@@ -122,20 +122,15 @@ export class SessionService {
     }
   }
 
-  // HTTP: create session (starts broadcast loops on backend)
-  async createSession(name: string, workingDirectory: string, mode: SessionMode = 'terminal'): Promise<void> {
-    const session = await this.api.createSession(name, workingDirectory, mode);
+  // HTTP: create session
+  async createSession(name: string, workingDirectory: string): Promise<void> {
+    const session = await this.api.createSession(name, workingDirectory);
     this.sessions.update(list =>
       list.some(s => s.id === session.id) ? list : [...list, session]);
     await this.selectSession(session.id);
   }
 
   // SignalR: real-time I/O
-  async sendInput(data: string): Promise<void> {
-    const id = this.activeSessionId();
-    if (id) await this.signalr.sendInput(id, data);
-  }
-
   async sendMessage(message: string): Promise<void> {
     const id = this.activeSessionId();
     if (!id) return;

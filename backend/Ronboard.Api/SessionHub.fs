@@ -9,17 +9,6 @@ open Ronboard.Api.Services
 type SessionHub(sessionOps: ISessionOperations, logger: ILogger<SessionHub>) =
     inherit Hub()
 
-    member this.SendInput(sessionId: Guid, data: string) =
-        task {
-            logger.LogInformation(
-                "User terminal input for session {SessionId} ({Length} chars)",
-                sessionId,
-                data.Length
-            )
-
-            do! sessionOps.SendInputAsync(sessionId, data)
-        }
-
     member this.SendMessage(sessionId: Guid, message: string) =
         task {
             logger.LogInformation("User message for session {SessionId}: {Message}", sessionId, message)
@@ -43,18 +32,11 @@ type SessionHub(sessionOps: ISessionOperations, logger: ILogger<SessionHub>) =
 
             match sessionOps.Get(sessionId) with
             | None -> ()
-            | Some session ->
-                match session.Mode with
-                | Terminal ->
-                    let history = sessionOps.GetTerminalHistory(sessionId)
+            | Some _ ->
+                let messages = sessionOps.GetStreamHistory(sessionId)
 
-                    if not (String.IsNullOrEmpty history) then
-                        do! this.Clients.Caller.SendCoreAsync("TerminalHistory", [| history |])
-                | Stream ->
-                    let messages = sessionOps.GetStreamHistory(sessionId)
-
-                    if messages.Length > 0 then
-                        do! this.Clients.Caller.SendCoreAsync("StreamHistory", [| messages |])
+                if messages.Length > 0 then
+                    do! this.Clients.Caller.SendCoreAsync("StreamHistory", [| messages |])
 
                 let activity = sessionOps.GetActivityState(sessionId)
 

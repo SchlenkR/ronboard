@@ -39,70 +39,6 @@ type ClaudeProcessService(logger: ILogger<ClaudeProcessService>) =
 
         Path.GetFullPath(p)
 
-    member _.StartTerminalProcess(workingDirectory: string, ?model: string) =
-        let resolvedDir = ClaudeProcessService.ExpandPath(workingDirectory)
-
-        if not (Directory.Exists resolvedDir) then
-            raise (DirectoryNotFoundException $"Working directory not found: {resolvedDir}")
-
-        let shell =
-            Environment.GetEnvironmentVariable("SHELL")
-            |> Option.ofObj
-            |> Option.defaultValue "/bin/zsh"
-
-        let claudeCmd =
-            match model with
-            | Some m -> $"claude --model {m}"
-            | None -> "claude"
-
-        let psi =
-            ProcessStartInfo(
-                FileName = "/usr/bin/script",
-                Arguments = $"""-q /dev/null {shell} -l -c "{claudeCmd}" """,
-                WorkingDirectory = resolvedDir,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            )
-
-        psi.Environment.["TERM"] <- "xterm-256color"
-        psi.Environment.["COLUMNS"] <- "120"
-        psi.Environment.["LINES"] <- "40"
-
-        let proc = new Process(StartInfo = psi)
-
-        let channel =
-            Channel.CreateUnbounded<string>(
-                UnboundedChannelOptions(SingleReader = false, SingleWriter = true)
-            )
-
-        proc.Start() |> ignore
-        logger.LogInformation("Started terminal Claude process (PID {Pid}) in {Dir}", proc.Id, resolvedDir)
-
-        task {
-            try
-                let buffer = Array.zeroCreate<char> 4096
-                let mutable keepReading = true
-
-                while keepReading do
-                    let! count = proc.StandardOutput.ReadAsync(buffer, 0, buffer.Length)
-
-                    if count = 0 then
-                        keepReading <- false
-                    else
-                        do! channel.Writer.WriteAsync(new string (buffer, 0, count))
-            with
-            | ex -> logger.LogError(ex, "Error reading terminal stdout")
-
-            channel.Writer.Complete()
-        }
-        |> ignore
-
-        startStderrReader proc
-        struct (proc, channel.Reader)
-
     member _.StartStreamProcess
         (workingDirectory: string, sessionId: Guid, isResume: bool, ?model: string)
         =
@@ -194,12 +130,6 @@ type ClaudeProcessService(logger: ILogger<ClaudeProcessService>) =
 
         startStderrReader proc
         struct (proc, channel.Reader)
-
-    member _.SendInputAsync(proc: Process, data: string) =
-        task {
-            do! proc.StandardInput.WriteAsync(data)
-            do! proc.StandardInput.FlushAsync()
-        }
 
     member _.SendStreamMessageAsync(proc: Process, userMessage: string) =
         task {

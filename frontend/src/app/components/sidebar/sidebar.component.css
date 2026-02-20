@@ -55,54 +55,6 @@
   font-size: 12px;
 }
 
-.new-session-wrapper {
-  position: relative;
-}
-
-.new-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
-  background: #2a2a30;
-  border: 1px solid #444;
-  border-radius: 8px;
-  overflow: hidden;
-  z-index: 100;
-  min-width: 140px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 14px;
-  border: none;
-  background: transparent;
-  color: #ddd;
-  font-size: 13px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s;
-}
-
-.dropdown-item:hover {
-  background: #007acc;
-  color: #fff;
-}
-
-.dropdown-item:not(:last-child) {
-  border-bottom: 1px solid #333;
-}
-
-.dropdown-icon {
-  font-size: 14px;
-  width: 16px;
-  text-align: center;
-}
-
 /* ── List ── */
 .session-list {
   flex: 1;
@@ -187,18 +139,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.session-mode-tag {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-
-.session-mode-tag.terminal { background: #1e3a2a; color: #4ec9b0; }
-.session-mode-tag.stream { background: #1e2a3a; color: #569cd6; }
 
 /* ── Status indicator ── */
 .status-indicator {
@@ -318,8 +258,4 @@
     opacity: 1;
   }
 
-  .dropdown-item {
-    padding: 12px 14px;
-    font-size: 15px;
-  }
 }

@@ -14,11 +14,6 @@ type SessionStatus =
     | Stopped
     | Error
 
-[<JsonConverter(typeof<DuStringConverter<SessionMode>>)>]
-type SessionMode =
-    | Terminal
-    | Stream
-
 [<RequireQualifiedAccess>]
 [<JsonConverter(typeof<DuStringConverter<ActivityState>>)>]
 type ActivityState =
@@ -33,7 +28,6 @@ type AgentSession =
       mutable Name: string
       mutable WorkingDirectory: string
       mutable Status: SessionStatus
-      mutable Mode: SessionMode
       CreatedAt: DateTime
       mutable LastUsedAt: DateTime
       mutable ClaudeSessionCreated: bool
@@ -47,7 +41,6 @@ module AgentSession =
           Name = ""
           WorkingDirectory = ""
           Status = Starting
-          Mode = Terminal
           CreatedAt = DateTime.UtcNow
           LastUsedAt = DateTime.UtcNow
           ClaudeSessionCreated = false

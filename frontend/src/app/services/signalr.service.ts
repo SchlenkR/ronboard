@@ -27,8 +27,6 @@ export class SignalRService implements OnDestroy {
   readonly sessionActivity$ = new Subject<{ sessionId: string; state: string }>();
   readonly sessionStatusChanged$ = new Subject<{ sessionId: string; status: string }>();
 
-  readonly terminalOutput$ = new Subject<{ sessionId: string; data: string }>();
-  readonly terminalHistory$ = new Subject<string>();
   readonly streamMessage$ = new Subject<{ sessionId: string; message: ClaudeMessage }>();
   readonly streamHistory$ = new Subject<ClaudeMessage[]>();
 
@@ -67,8 +65,6 @@ export class SignalRService implements OnDestroy {
     this.connection.on('SessionActivity', (id: string, state: string) => this.sessionActivity$.next({ sessionId: id, state }));
     this.connection.on('SessionStatusChanged', (id: string, status: string) => this.sessionStatusChanged$.next({ sessionId: id, status }));
 
-    this.connection.on('TerminalOutput', (id: string, data: string) => this.terminalOutput$.next({ sessionId: id, data }));
-    this.connection.on('TerminalHistory', (history: string) => this.terminalHistory$.next(history));
     this.connection.on('StreamMessage', (id: string, msg: ClaudeMessage) => this.streamMessage$.next({ sessionId: id, message: msg }));
     this.connection.on('StreamHistory', (msgs: ClaudeMessage[]) => this.streamHistory$.next(msgs));
   }
@@ -81,11 +77,6 @@ export class SignalRService implements OnDestroy {
       console.error('SignalR connection failed:', err);
       setTimeout(() => this.start(), 3000);
     }
-  }
-
-  // Real-time bidirectional I/O
-  async sendInput(sessionId: string, data: string): Promise<void> {
-    await this.connection.invoke('SendInput', sessionId, data);
   }
 
   async sendMessage(sessionId: string, message: string): Promise<void> {

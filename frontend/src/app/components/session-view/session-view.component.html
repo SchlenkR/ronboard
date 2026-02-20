@@ -8,19 +8,13 @@
       } @else if (activityState() === 'tool_use') {
         <span class="activity-badge tool-use">Tool running...</span>
       }
-      <span class="mode-badge" [ngClass]="session.mode">{{ session.mode }}</span>
       <span class="working-dir">{{ session.workingDirectory }}</span>
     </div>
     <button class="btn-stop" (click)="stop()" [disabled]="session.status === 'stopped'">Stop</button>
   </div>
 }
 
-<!-- Terminal always in DOM (xterm.js needs a persistent container) -->
-<app-terminal-view class="view-area"
-    [style.display]="sessionService.activeSession()?.mode === 'terminal' ? '' : 'none'" />
-
-<!-- Stream can be dynamic since it reads from the messages signal -->
-@if (sessionService.activeSession()?.mode === 'stream') {
+@if (sessionService.activeSession()) {
   <app-stream-view class="view-area" />
 }
 

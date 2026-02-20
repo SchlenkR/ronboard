@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { AgentSession, SessionMode } from '../models/session.model';
+import { AgentSession } from '../models/session.model';
 import { ClaudeMessage } from '../models/claude-message.model';
 import { environment } from '../../environments/environment';
 
@@ -17,16 +17,16 @@ export class ApiService {
     return res.json();
   }
 
-  async getContent(id: string): Promise<{ mode: string; terminal?: string; messages?: ClaudeMessage[] }> {
+  async getContent(id: string): Promise<{ messages?: ClaudeMessage[] }> {
     const res = await fetch(`${this.baseUrl}/${id}/content`);
     return res.json();
   }
 
-  async createSession(name: string, workingDirectory: string, mode: SessionMode = 'terminal', model?: string): Promise<AgentSession> {
+  async createSession(name: string, workingDirectory: string, model?: string): Promise<AgentSession> {
     const res = await fetch(this.baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, workingDirectory, mode, model: model ?? null }),
+      body: JSON.stringify({ name, workingDirectory, model: model ?? null }),
     });
     return res.json();
   }
