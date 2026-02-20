@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { SignalRService } from './signalr.service';
 import { ApiService } from './api.service';
-import { AgentSession, SessionMode } from '../models/session.model';
+import { AgentSession, SessionMode, SessionStatus } from '../models/session.model';
 import { ClaudeMessage } from '../models/claude-message.model';
 
 @Injectable({ providedIn: 'root' })
@@ -10,6 +10,9 @@ export class SessionService {
   readonly activeSessionId = signal<string | null>(null);
   readonly connected = signal(false);
   readonly messages = signal<ClaudeMessage[]>([]);
+
+  readonly activityStates = signal<Record<string, string>>({});
+  readonly unreadSessionIds = signal<Set<string>>(new Set());
 
   readonly activeSession = computed(() => {
     const id = this.activeSessionId();
@@ -71,6 +74,31 @@ export class SessionService {
     this.signalr.streamHistory$.subscribe(history => {
       this.messages.set(history);
     });
+
+    // Status changes (e.g. auto-started after server restart)
+    this.signalr.sessionStatusChanged$.subscribe(({ sessionId, status }) => {
+      this.sessions.update(list =>
+        list.map(s => s.id === sessionId ? { ...s, status: status as SessionStatus } : s));
+    });
+
+    // Reconnect: rejoin active session group + refresh session list
+    this.signalr.reconnected$.subscribe(async () => {
+      this.sessions.set(await this.api.getSessions());
+      const id = this.activeSessionId();
+      if (id) {
+        await this.signalr.joinSession(id);
+      }
+    });
+
+    // Activity state tracking
+    this.signalr.sessionActivity$.subscribe(({ sessionId, state }) => {
+      this.activityStates.update(s => ({ ...s, [sessionId]: state }));
+
+      // Mark as unread when LLM finishes and user isn't viewing this session
+      if (state === 'idle' && sessionId !== this.activeSessionId()) {
+        this.unreadSessionIds.update(set => new Set([...set, sessionId]));
+      }
+    });
   }
 
   // SignalR: join/leave groups, resume sessions
@@ -80,6 +108,11 @@ export class SessionService {
     }
     this.activeSessionId.set(sessionId);
     this.messages.set([]);
+    this.unreadSessionIds.update(set => {
+      const next = new Set(set);
+      next.delete(sessionId);
+      return next;
+    });
     await this.signalr.joinSession(sessionId);
     this.previousSessionId = sessionId;
 

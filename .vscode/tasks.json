@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Backend: Start",
+      "label": "RONBOARD  ::  Start Server",
       "type": "process",
       "command": "dotnet",
       "args": ["run", "--project", "backend/Ronboard.Api"],
@@ -87,7 +87,7 @@
     },
     {
       "label": "Start All",
-      "dependsOn": ["Backend: Start", "Frontend: Start"],
+      "dependsOn": ["RONBOARD  ::  Start Server", "Frontend: Start"],
       "dependsOrder": "parallel",
       "group": {
         "kind": "build",

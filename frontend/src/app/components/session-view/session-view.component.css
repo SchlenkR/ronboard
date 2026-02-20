@@ -54,6 +54,31 @@
 .mode-badge.terminal { background: #2d2d2d; color: #4ec9b0; border: 1px solid #4ec9b0; }
 .mode-badge.stream { background: #2d2d2d; color: #569cd6; border: 1px solid #569cd6; }
 
+.activity-badge {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  animation: fade-pulse 1.2s ease-in-out infinite;
+}
+
+.activity-badge.thinking {
+  background: #1e3a2a;
+  color: #4ec9b0;
+  box-shadow: 0 0 8px rgba(78, 201, 176, 0.3);
+}
+
+.activity-badge.tool-use {
+  background: #2a1e2a;
+  color: #c586c0;
+  box-shadow: 0 0 8px rgba(197, 134, 192, 0.3);
+}
+
+@keyframes fade-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .working-dir {
   color: #888;
   font-size: 12px;
@@ -83,6 +108,7 @@
 
 .view-area {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 

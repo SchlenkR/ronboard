@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Json.fs" />
+    <Compile Include="Models.fs" />
+    <Compile Include="Prompts.fs" />
+    <Compile Include="ClaudeProcessService.fs" />
+    <Compile Include="PersistenceService.fs" />
+    <Compile Include="ISessionOperations.fs" />
+    <Compile Include="SessionHub.fs" />
+    <Compile Include="SessionManager.fs" />
+    <Compile Include="AutoNamingService.fs" />
+    <Compile Include="SessionController.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Stubble.Core" Version="1.10.8" />
+  </ItemGroup>
+
+</Project>

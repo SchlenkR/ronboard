@@ -35,10 +35,10 @@ export class SidebarComponent {
     };
 
     const sorted = [...sessions].sort((a, b) =>
-      new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime());
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     for (const session of sorted) {
-      const date = new Date(session.lastUsedAt);
+      const date = new Date(session.createdAt);
       if (date >= today) groups['Today'].push(session);
       else if (date >= yesterday) groups['Yesterday'].push(session);
       else if (date >= sevenDaysAgo) groups['Last 7 Days'].push(session);
@@ -64,5 +64,22 @@ export class SidebarComponent {
   async remove(event: Event, sessionId: string): Promise<void> {
     event.stopPropagation();
     await this.sessionService.removeSession(sessionId);
+  }
+
+  getActivity(sessionId: string): string {
+    return this.sessionService.activityStates()[sessionId] ?? 'idle';
+  }
+
+  isUnread(sessionId: string): boolean {
+    return this.sessionService.unreadSessionIds().has(sessionId);
+  }
+
+  getDotState(session: AgentSession): string {
+    const activity = this.getActivity(session.id);
+    if (activity === 'busy' || activity === 'tool_use') return 'active';
+    if (this.isUnread(session.id)) return 'unread';
+    if (session.status === 'stopped') return 'paused';
+    if (session.status === 'error') return 'error';
+    return 'default';
   }
 }

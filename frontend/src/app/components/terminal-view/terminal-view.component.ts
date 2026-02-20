@@ -13,8 +13,8 @@ import { SignalRService } from '../../services/signalr.service';
   standalone: true,
   template: `<div class="terminal-container" #terminalContainer></div>`,
   styles: [`
-    :host { display: block; width: 100%; height: 100%; overflow: hidden; }
-    .terminal-container { width: 100%; height: 100%; }
+    :host { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+    .terminal-container { flex: 1; width: 100%; min-height: 0; }
   `],
 })
 export class TerminalViewComponent implements AfterViewInit, OnDestroy {
@@ -37,10 +37,8 @@ export class TerminalViewComponent implements AfterViewInit, OnDestroy {
         this.currentSessionId = newId;
         this.terminal?.clear();
         this.terminal?.reset();
-        setTimeout(() => {
-          this.fitAddon?.fit();
-          this.terminal?.focus();
-        }, 10);
+        // Delay fit until layout has settled after display change
+        this.deferFit();
       } else if (!newId) {
         this.currentSessionId = null;
       }
@@ -76,8 +74,6 @@ export class TerminalViewComponent implements AfterViewInit, OnDestroy {
         cursor: '#d4d4d4',
         selectionBackground: '#264f78',
       },
-      cols: 120,
-      rows: 40,
       scrollback: 10000,
     });
 
@@ -89,10 +85,25 @@ export class TerminalViewComponent implements AfterViewInit, OnDestroy {
       this.sessionService.sendInput(data);
     });
 
-    this.resizeObserver = new ResizeObserver(() => {
-      setTimeout(() => this.fitAddon?.fit(), 0);
+    // ResizeObserver for window/container resizes
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        this.fitAddon?.fit();
+      }
     });
     this.resizeObserver.observe(container);
+  }
+
+  /** Fit terminal after layout settles (handles display:none → visible transition) */
+  private deferFit(): void {
+    // Use requestAnimationFrame + setTimeout to ensure layout is complete
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        this.fitAddon?.fit();
+        this.terminal?.focus();
+      }, 0);
+    });
   }
 
   ngOnDestroy(): void {

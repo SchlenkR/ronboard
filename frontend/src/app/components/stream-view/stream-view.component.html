@@ -3,8 +3,19 @@
     <app-message-renderer [message]="msg" />
   }
 
-  @if (sessionService.messages().length === 0) {
+  @if (sessionService.messages().length === 0 && !isActive()) {
     <div class="waiting">Waiting for Claude...</div>
+  }
+
+  @if (isActive()) {
+    <div class="typing-indicator">
+      <span class="typing-label">{{ activityLabel() }}</span>
+      <span class="typing-dots">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </span>
+    </div>
   }
 </div>
 

@@ -27,18 +27,24 @@
     <div class="session-group">
       <div class="group-header">{{ group.label }}</div>
       @for (session of group.sessions; track session.id) {
-        <div class="session-item"
+        <div class="session-card"
              [class.active]="session.id === sessionService.activeSessionId()"
+             [class.card-active-llm]="getActivity(session.id) === 'busy' || getActivity(session.id) === 'tool_use'"
+             [class.card-unread]="isUnread(session.id)"
              (click)="select(session.id)">
-          <span class="status-dot" [ngClass]="session.status"></span>
-          <div class="session-info">
-            <span class="session-name">#{{ session.number }} {{ session.name }}</span>
-            <span class="session-meta">
-              <span class="session-dir">{{ session.workingDirectory }}</span>
-              <span class="session-mode-tag" [ngClass]="session.mode">{{ session.mode }}</span>
+          <div class="card-top">
+            <span class="status-indicator" [ngClass]="getDotState(session)">
+              @if (getActivity(session.id) === 'busy' || getActivity(session.id) === 'tool_use') {
+                <span class="dot-triple"><span></span><span></span><span></span></span>
+              }
             </span>
+            <span class="session-name">#{{ session.number }} {{ session.name }}</span>
+            <button class="btn-remove" (click)="remove($event, session.id)" title="Remove">&times;</button>
           </div>
-          <button class="btn-remove" (click)="remove($event, session.id)" title="Remove">&times;</button>
+          <div class="card-bottom">
+            <span class="session-dir">{{ session.workingDirectory }}</span>
+            <span class="session-mode-tag" [ngClass]="session.mode">{{ session.mode }}</span>
+          </div>
         </div>
       }
     </div>

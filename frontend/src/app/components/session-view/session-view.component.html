@@ -3,6 +3,11 @@
     <div class="header-info">
       <h3>{{ session.name }}</h3>
       <span class="badge" [ngClass]="session.status">{{ session.status }}</span>
+      @if (activityState() === 'busy') {
+        <span class="activity-badge thinking">Thinking...</span>
+      } @else if (activityState() === 'tool_use') {
+        <span class="activity-badge tool-use">Tool running...</span>
+      }
       <span class="mode-badge" [ngClass]="session.mode">{{ session.mode }}</span>
       <span class="working-dir">{{ session.workingDirectory }}</span>
     </div>

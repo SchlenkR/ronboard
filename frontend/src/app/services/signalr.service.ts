@@ -22,6 +22,10 @@ export class SignalRService implements OnDestroy {
   readonly sessionResumed$ = new Subject<AgentSession>();
   readonly sessionRenamed$ = new Subject<{ sessionId: string; name: string }>();
   readonly connected$ = new BehaviorSubject<boolean>(false);
+  readonly reconnected$ = new Subject<void>();
+
+  readonly sessionActivity$ = new Subject<{ sessionId: string; state: string }>();
+  readonly sessionStatusChanged$ = new Subject<{ sessionId: string; status: string }>();
 
   readonly terminalOutput$ = new Subject<{ sessionId: string; data: string }>();
   readonly terminalHistory$ = new Subject<string>();
@@ -38,6 +42,16 @@ export class SignalRService implements OnDestroy {
       .configureLogging(LogLevel.Information)
       .build();
 
+    this.connection.onreconnected(() => {
+      console.log('SignalR reconnected');
+      this.connected$.next(true);
+      this.reconnected$.next();
+    });
+
+    this.connection.onclose(() => {
+      this.connected$.next(false);
+    });
+
     this.registerHandlers();
     this.start();
   }
@@ -49,6 +63,9 @@ export class SignalRService implements OnDestroy {
     this.connection.on('SessionEnded', (id: string) => this.sessionEnded$.next(id));
     this.connection.on('SessionResumed', (s: AgentSession) => this.sessionResumed$.next(s));
     this.connection.on('SessionRenamed', (id: string, name: string) => this.sessionRenamed$.next({ sessionId: id, name }));
+
+    this.connection.on('SessionActivity', (id: string, state: string) => this.sessionActivity$.next({ sessionId: id, state }));
+    this.connection.on('SessionStatusChanged', (id: string, status: string) => this.sessionStatusChanged$.next({ sessionId: id, status }));
 
     this.connection.on('TerminalOutput', (id: string, data: string) => this.terminalOutput$.next({ sessionId: id, data }));
     this.connection.on('TerminalHistory', (history: string) => this.terminalHistory$.next(history));
